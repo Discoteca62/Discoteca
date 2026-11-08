@@ -153,7 +153,9 @@ const blobURL=b=>new Promise(ok=>{const f=new FileReader();f.onload=()=>ok(f.res
 $('#bDg').onclick=()=>discogs('',null);
 
 // Scanner (iPhone: apri la pagina su HTTPS per usare la fotocamera)
-const zx=()=>new Promise((ok,ko)=>{if(window.ZXing)return ok();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3';s.onload=ok;s.onerror=()=>ko(new Error('componente non caricato, controlla la connessione'));document.head.appendChild(s)});
+const zx=async()=>{if(window.ZXing)return;const U=['https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js','https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js'];
+ for(const u of U){await new Promise(ok=>{const e=document.createElement('script');e.src=u;e.onload=e.onerror=ok;document.head.appendChild(e)});if(window.ZXing)return}
+ throw new Error('lettore di codici non caricato, controlla la connessione')};
 const mkReader=()=>{const h=new Map(),Z=ZXing;h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E]);h.set(Z.DecodeHintType.TRY_HARDER,true);return new Z.BrowserMultiFormatReader(h,250)};
 let rd=null,run=false,stream=null;
 function stop(){run=false;if(rd){try{rd.reset()}catch{}rd=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('#dScan').close()}
