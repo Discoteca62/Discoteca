@@ -42,6 +42,7 @@ video{width:100%;border-radius:10px;background:#000;max-height:50vh}
 .hit{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:8px;margin:8px 0;cursor:pointer}
 .hit:hover{border-color:var(--acc)}
 .msg{color:var(--mut);font-size:14px;margin:6px 0}
+.grp{margin:20px 0 8px;font:700 20px Georgia,serif;color:var(--acc);border-bottom:2px solid var(--acc2);padding-bottom:2px}
 .cov.big{width:96px;height:96px;text-align:center}
 .cvrow{display:flex;gap:14px;align-items:center;margin-bottom:12px}
 #dPick .acts{position:sticky;top:-20px;background:#fff;padding:8px 0;z-index:1}
@@ -83,14 +84,31 @@ const FIELDS={
  posizione:['Posizione in archivio',r=>[r.posizione]],
  codici:['Catalogo, matrice, barcode',r=>[r.catalogo,r.matrice,r.barcode]]};
 $('#f').innerHTML=Object.entries(FIELDS).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
+const rowHTML=(r,t)=>{
+ const ppl=[...new Set([...r.interpreti,...r.autori])];
+ const tl=t&&[...t.interpreti,...t.autori].length?`<div class="meta"><span>Brano di: ${esc([...new Set([...t.autori,...t.interpreti])].join(', '))}</span></div>`:'';
+ return `<div class="row" data-id="${r.id}"><div class="cov" style="${r.copertina?`background-image:url('${esc(r.copertina)}')`:''}">${r.copertina?'':esc(r.supporto)}</div><div><div class="t">${esc(r.titolo||'(senza titolo)')}</div>${tl}<div class="chips">${ppl.map(p=>`<button class="chip" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div><div class="meta"><span class="sup">${esc(r.supporto)}</span>${r.casa?`<span>${esc(r.casa)}</span>`:''}${r.annoUscita||r.annoPub?`<span>${esc(r.annoUscita||r.annoPub)}</span>`:''}${r.generi.length?`<span>${esc(r.generi.join(', '))}</span>`:''}${r.posizione?`<span>Archivio: ${esc(r.posizione)}</span>`:''}</div></div></div>`};
 function render(){
- const q=norm($('#q').value.trim()),f=$('#f').value,s=$('#s').value;
- const out=DATA.filter(r=>(!s||r.supporto===s)&&(!q||FIELDS[f][1](r).some(x=>norm(x).includes(q)))).sort((a,b)=>norm(a.titolo).localeCompare(norm(b.titolo)));
- $('#bClr').hidden=!(q||s||f!=='tutti');
- $('#cnt').textContent=DATA.length?`${out.length} di ${DATA.length} elementi`:'';
- $('#list').innerHTML=out.length?out.map(r=>{
-  const ppl=[...new Set([...r.interpreti,...r.autori])];
-  return `<div class="row" data-id="${r.id}"><div class="cov" style="${r.copertina?`background-image:url('${esc(r.copertina)}')`:''}">${r.copertina?'':esc(r.supporto)}</div><div><div class="t">${esc(r.titolo||'(senza titolo)')}</div><div class="chips">${ppl.map(p=>`<button class="chip" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div><div class="meta"><span class="sup">${esc(r.supporto)}</span>${r.casa?`<span>${esc(r.casa)}</span>`:''}${r.annoUscita||r.annoPub?`<span>${esc(r.annoUscita||r.annoPub)}</span>`:''}${r.generi.length?`<span>${esc(r.generi.join(', '))}</span>`:''}${r.posizione?`<span>Archivio: ${esc(r.posizione)}</span>`:''}</div></div></div>`}).join(''):`<div class="empty">${DATA.length?'Nessun risultato.':'Archivio vuoto. Aggiungi il primo elemento a mano, oppure scansiona un codice a barre.'}</div>`}
+ const toks=norm($('#q').value.trim()).split(/\s+/).filter(Boolean),f=$('#f').value,sup=$('#s').value;
+ $('#q').placeholder=f==='tutti'||f==='album'?'Scrivi anche solo una parte…':'Scrivi anche solo una parte; vuoto = elenco A–Z';
+ const base=DATA.filter(r=>!sup||r.supporto===sup);
+ const ok=v=>toks.every(t=>norm(v).includes(t));
+ const byT=(a,b)=>norm(a.titolo).localeCompare(norm(b.titolo),'it');
+ let html='',n=0;
+ if(f==='tutti'||f==='album'){
+  const out=base.filter(r=>ok(f==='album'?r.titolo:FIELDS.tutti[1](r).join(' '))).sort(byT);
+  n=out.length;html=out.map(r=>rowHTML(r)).join('')}
+ else{
+  const ent=[];
+  base.forEach(r=>{
+   if(f==='canzone')(r.tracce||[]).forEach(t=>{if(t.titolo)ent.push({v:t.titolo,r,t})});
+   else[...new Set(FIELDS[f][1](r).map(x=>String(x??'').trim()).filter(Boolean))].forEach(v=>ent.push({v,r}))});
+  const out=ent.filter(e=>ok(e.v)).sort((a,b)=>norm(a.v).localeCompare(norm(b.v),'it',{numeric:true})||byT(a.r,b.r));
+  n=out.length;
+  html=out.map((e,i)=>(i===0||norm(out[i-1].v)!==norm(e.v)?`<h3 class="grp">${esc(e.v)}</h3>`:'')+rowHTML(e.r,e.t)).join('')}
+ $('#bClr').hidden=!(toks.length||sup||f!=='tutti');
+ $('#cnt').textContent=DATA.length?`${n} risultati su ${DATA.length} dischi`:'';
+ $('#list').innerHTML=html||`<div class="empty">${DATA.length?'Nessun risultato.':'Archivio vuoto. Aggiungi il primo elemento a mano, oppure scansiona un codice a barre.'}</div>`}
 $('#list').onclick=e=>{const c=e.target.closest('.chip');if(c){e.stopPropagation();$('#q').value=c.dataset.p;$('#f').value='tutti';render();return}
  const r=e.target.closest('.row');if(r)edit(DATA.find(x=>x.id===r.dataset.id),false)};
 ['input','change'].forEach(ev=>['#q','#f','#s'].forEach(i=>$(i).addEventListener(ev,render)));
