@@ -48,7 +48,7 @@ video{width:100%;border-radius:10px;background:#000;max-height:50vh}
 <div class="bar"><input id="q" type="search" placeholder="Cerca…" aria-label="Cerca"><select id="f" aria-label="Cerca in"></select><select id="s" aria-label="Supporto"><option value="">Tutti i supporti</option><option>CD</option><option>Vinile</option><option>DVD</option></select></div>
 <div id="cnt"></div><main id="list"></main>
 <input type="file" id="ph" accept="image/*" capture="environment" hidden>
-<dialog id="dEdit"></dialog><dialog id="dScan"><h2>Scansiona il codice a barre</h2><video id="vid" playsinline muted></video><p class="msg" id="sm">Inquadra il codice a barre.</p><label>Oppure scrivi codice a barre, numero di catalogo o matrice<input id="man"></label><div class="acts"><button class="p" id="manGo">Cerca</button><button id="scX">Chiudi</button></div></dialog>
+<dialog id="dEdit"></dialog><dialog id="dScan"><h2>Scansiona il codice a barre</h2><video id="vid" playsinline muted></video><p class="msg" id="sm">Inquadra il codice a barre.</p><label>Oppure scrivi codice a barre, numero di catalogo o matrice<input id="man"></label><div class="acts"><button class="p" id="manGo">Cerca</button><button id="shot">Scatta una foto del codice</button><button id="scX">Chiudi</button></div><input type="file" id="sf" accept="image/*" capture="environment" hidden></dialog>
 <dialog id="dPick"></dialog><dialog id="dSet"></dialog>
 <script>
 const $=s=>document.querySelector(s);
@@ -153,6 +153,7 @@ const blobURL=b=>new Promise(ok=>{const f=new FileReader();f.onload=()=>ok(f.res
 $('#bDg').onclick=()=>discogs('',null);
 
 // Scanner (iPhone: apri la pagina su HTTPS per usare la fotocamera)
+const zx=()=>new Promise((ok,ko)=>{if(window.ZXing)return ok();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3';s.onload=ok;s.onerror=()=>ko(new Error('componente non caricato, controlla la connessione'));document.head.appendChild(s)});
 let rd=null,run=false,stream=null;
 function stop(){run=false;if(rd){try{rd.reset()}catch{}rd=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('#dScan').close()}
 const found=c=>{stop();discogs(c,null)};
@@ -161,10 +162,16 @@ $('#bScan').onclick=async()=>{const d=$('#dScan'),v=$('#vid');$('#sm').textConte
   if('BarcodeDetector' in window){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});v.srcObject=stream;await v.play();
    const det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});run=true;
    (async function l(){if(!run)return;try{const b=await det.detect(v);if(b.length)return found(b[0].rawValue)}catch{}setTimeout(l,300)})()}
-  else{await new Promise((ok,ko)=>{if(window.ZXing)return ok();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3';s.onload=ok;s.onerror=ko;document.head.appendChild(s)});
+  else{await zx();
    rd=new ZXing.BrowserMultiFormatReader();rd.decodeFromConstraints({video:{facingMode:'environment'}},v,r=>{if(r)found(r.getText())})}
- }catch(e){$('#sm').textContent='Fotocamera non disponibile (serve una pagina HTTPS e il permesso). Scrivi il codice qui sotto.'}};
+ }catch(e){$('#sm').textContent='Fotocamera in diretta non disponibile ('+(e.name||e.message)+'). Tocca «Scatta una foto del codice» oppure scrivi il codice qui sotto.'}};
 $('#scX').onclick=stop;$('#dScan').addEventListener('cancel',stop);
+$('#shot').onclick=()=>$('#sf').click();
+$('#sf').onchange=async e=>{const f=e.target.files[0];if(!f)return;e.target.value='';const sm=$('#sm');sm.textContent='Lettura del codice…';
+ try{const url=URL.createObjectURL(f);let code='';
+  if('BarcodeDetector' in window){const img=new Image();img.src=url;await img.decode();const b=await new BarcodeDetector().detect(img);code=b[0]?.rawValue||''}
+  if(!code){await zx();code=(await new ZXing.BrowserMultiFormatReader().decodeFromImageUrl(url)).getText()}
+  found(code)}catch(er){sm.textContent='Codice non letto ('+(er.message||er.name)+'). Riprova con una foto più vicina e nitida, oppure scrivilo qui sotto.'}};
 $('#manGo').onclick=()=>{const v=$('#man').value.trim();if(v)found(v)};
 
 // Foto copertina
