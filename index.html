@@ -154,6 +154,7 @@ $('#bDg').onclick=()=>discogs('',null);
 
 // Scanner (iPhone: apri la pagina su HTTPS per usare la fotocamera)
 const zx=()=>new Promise((ok,ko)=>{if(window.ZXing)return ok();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3';s.onload=ok;s.onerror=()=>ko(new Error('componente non caricato, controlla la connessione'));document.head.appendChild(s)});
+const mkReader=()=>{const h=new Map(),Z=ZXing;h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E]);h.set(Z.DecodeHintType.TRY_HARDER,true);return new Z.BrowserMultiFormatReader(h,250)};
 let rd=null,run=false,stream=null;
 function stop(){run=false;if(rd){try{rd.reset()}catch{}rd=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('#dScan').close()}
 const found=c=>{stop();discogs(c,null)};
@@ -163,14 +164,14 @@ $('#bScan').onclick=async()=>{const d=$('#dScan'),v=$('#vid');$('#sm').textConte
    const det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});run=true;
    (async function l(){if(!run)return;try{const b=await det.detect(v);if(b.length)return found(b[0].rawValue)}catch{}setTimeout(l,300)})()}
   else{await zx();
-   rd=new ZXing.BrowserMultiFormatReader();rd.decodeFromConstraints({video:{facingMode:'environment'}},v,r=>{if(r)found(r.getText())})}
+   rd=mkReader();$('#sm').textContent='Tieni il telefono fermo, a 15–20 cm, con il codice ben illuminato e dritto.';rd.decodeFromConstraints({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}},v,r=>{if(r)found(r.getText())})}
  }catch(e){$('#sm').textContent='Fotocamera in diretta non disponibile ('+(e.name||e.message)+'). Tocca «Scatta una foto del codice» oppure scrivi il codice qui sotto.'}};
 $('#scX').onclick=stop;$('#dScan').addEventListener('cancel',stop);
 $('#shot').onclick=()=>$('#sf').click();
 $('#sf').onchange=async e=>{const f=e.target.files[0];if(!f)return;e.target.value='';const sm=$('#sm');sm.textContent='Lettura del codice…';
  try{const url=URL.createObjectURL(f);let code='';
   if('BarcodeDetector' in window){const img=new Image();img.src=url;await img.decode();const b=await new BarcodeDetector().detect(img);code=b[0]?.rawValue||''}
-  if(!code){await zx();code=(await new ZXing.BrowserMultiFormatReader().decodeFromImageUrl(url)).getText()}
+  if(!code){await zx();code=(await mkReader().decodeFromImageUrl(url)).getText()}
   found(code)}catch(er){sm.textContent='Codice non letto ('+(er.message||er.name)+'). Riprova con una foto più vicina e nitida, oppure scrivilo qui sotto.'}};
 $('#manGo').onclick=()=>{const v=$('#man').value.trim();if(v)found(v)};
 
