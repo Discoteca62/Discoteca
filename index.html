@@ -42,6 +42,10 @@ video{width:100%;border-radius:10px;background:#000;max-height:50vh}
 .hit{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:8px;margin:8px 0;cursor:pointer}
 .hit:hover{border-color:var(--acc)}
 .msg{color:var(--mut);font-size:14px;margin:6px 0}
+.warn{background:#fff4d6;border:1px solid var(--acc2);border-radius:8px;padding:10px;margin:10px 0}
+.hit.ing{border-color:var(--acc2);background:#fff9e8}
+.nm{font-weight:700;color:var(--ink)}
+.dupb{background:#fff4d6;border:1px solid var(--acc2);border-radius:4px;padding:0 6px}
 .grp{margin:20px 0 8px;font:700 20px Georgia,serif;color:var(--acc);border-bottom:2px solid var(--acc2);padding-bottom:2px}
 .cov.big{width:96px;height:96px;text-align:center}
 .cvrow{display:flex;gap:14px;align-items:center;margin-bottom:12px}
@@ -57,7 +61,7 @@ video{width:100%;border-radius:10px;background:#000;max-height:50vh}
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const split=s=>String(s||'').split(/[;\n]/).map(x=>x.trim()).filter(Boolean);
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now()+''+Math.random());
 let db,DATA=[];
@@ -66,10 +70,10 @@ const st=m=>db.transaction('dischi',m).objectStore('dischi');
 const getAll=()=>new Promise(ok=>{const r=st('readonly').getAll();r.onsuccess=()=>ok(r.result)});
 const put=r=>new Promise(ok=>{st('readwrite').put(r).transaction.oncomplete=ok});
 const del=id=>new Promise(ok=>{st('readwrite').delete(id).transaction.oncomplete=ok});
-const fix=r=>({id:uid(),mod:0,titolo:'',autori:[],interpreti:[],direttori:[],musicisti:[],casa:'',annoPub:'',annoUscita:'',generi:[],supporto:'CD',catalogo:'',matrice:'',barcode:'',posizione:'',tracce:[],note:'',copertina:'',...r});
+const fix=r=>({id:uid(),mod:0,num:0,creato:0,discogs:0,titolo:'',autori:[],interpreti:[],direttori:[],musicisti:[],casa:'',annoPub:'',annoUscita:'',generi:[],supporto:'CD',catalogo:'',matrice:'',barcode:'',posizione:'',tracce:[],note:'',copertina:'',...r});
 const tr=r=>r.tracce;
 const FIELDS={
- tutti:['Tutti i campi',r=>[r.titolo,...r.autori,...r.interpreti,...r.direttori,...r.musicisti,r.casa,r.annoPub,r.annoUscita,...r.generi,r.supporto,r.posizione,r.catalogo,r.matrice,r.barcode,r.note,...tr(r).flatMap(t=>[t.titolo,...t.autori,...t.interpreti])]],
+ tutti:['Tutti i campi',r=>[r.titolo,...r.autori,...r.interpreti,...r.direttori,...r.musicisti,r.casa,r.annoPub,r.annoUscita,...r.generi,r.supporto,r.posizione,r.num,r.catalogo,r.matrice,r.barcode,r.note,...tr(r).flatMap(t=>[t.titolo,...t.autori,...t.interpreti])]],
  autore:['Autore',r=>[...r.autori,...tr(r).flatMap(t=>t.autori)]],
  album:['Titolo dell’album',r=>[r.titolo]],
  canzone:['Titolo della canzone',r=>tr(r).map(t=>t.titolo)],
@@ -82,12 +86,13 @@ const FIELDS={
  genere:['Genere musicale',r=>r.generi],
  supporto:['Tipo supporto',r=>[r.supporto]],
  posizione:['Posizione in archivio',r=>[r.posizione]],
+ num:['Numero progressivo',r=>[r.num]],
  codici:['Catalogo, matrice, barcode',r=>[r.catalogo,r.matrice,r.barcode]]};
 $('#f').innerHTML=Object.entries(FIELDS).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
 const rowHTML=(r,t)=>{
  const ppl=[...new Set([...r.interpreti,...r.autori])];
  const tl=t&&[...t.interpreti,...t.autori].length?`<div class="meta"><span>Brano di: ${esc([...new Set([...t.autori,...t.interpreti])].join(', '))}</span></div>`:'';
- return `<div class="row" data-id="${r.id}"><div class="cov" style="${r.copertina?`background-image:url('${esc(r.copertina)}')`:''}">${r.copertina?'':esc(r.supporto)}</div><div><div class="t">${esc(r.titolo||'(senza titolo)')}</div>${tl}<div class="chips">${ppl.map(p=>`<button class="chip" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div><div class="meta"><span class="sup">${esc(r.supporto)}</span>${r.casa?`<span>${esc(r.casa)}</span>`:''}${r.annoUscita||r.annoPub?`<span>${esc(r.annoUscita||r.annoPub)}</span>`:''}${r.generi.length?`<span>${esc(r.generi.join(', '))}</span>`:''}${r.posizione?`<span>Archivio: ${esc(r.posizione)}</span>`:''}</div></div></div>`};
+ return `<div class="row" data-id="${r.id}"><div class="cov" style="${r.copertina?`background-image:url('${esc(r.copertina)}')`:''}">${r.copertina?'':esc(r.supporto)}</div><div><div class="t">${esc(r.titolo||'(senza titolo)')}</div>${tl}<div class="chips">${ppl.map(p=>`<button class="chip" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div><div class="meta"><span class="nm">n. ${r.num||'–'}</span><span class="sup">${esc(r.supporto)}</span>${DUPS.has(r.id)?'<span class="dupb">Possibile doppione</span>':''}${r.casa?`<span>${esc(r.casa)}</span>`:''}${r.annoUscita||r.annoPub?`<span>${esc(r.annoUscita||r.annoPub)}</span>`:''}${r.generi.length?`<span>${esc(r.generi.join(', '))}</span>`:''}${r.posizione?`<span>Archivio: ${esc(r.posizione)}</span>`:''}</div></div></div>`};
 function render(){
  const toks=norm($('#q').value.trim()).split(/\s+/).filter(Boolean),f=$('#f').value,sup=$('#s').value;
  $('#q').placeholder=f==='tutti'||f==='album'?'Scrivi anche solo una parte…':'Scrivi anche solo una parte; vuoto = elenco A–Z';
@@ -115,13 +120,28 @@ $('#list').onclick=e=>{const c=e.target.closest('.chip');if(c){e.stopPropagation
 const reset=()=>{$('#q').value='';$('#f').value='tutti';$('#s').value='';render();scrollTo(0,0)};
 $('#bClr').onclick=reset;
 $('#bHome').onclick=()=>{if(typeof stop==='function')stop();document.querySelectorAll('dialog[open]').forEach(d=>d.close());reset()};
-async function reload(){DATA=(await getAll()).map(fix);render()}
+let DUPS=new Set();
+const bc=x=>String(x||'').replace(/\D/g,'').replace(/^0+/,'');
+function same(a,b){if(a.id===b.id)return false;
+ if(a.discogs&&b.discogs&&String(a.discogs)===String(b.discogs))return true;
+ if(bc(a.barcode)&&bc(a.barcode)===bc(b.barcode))return true;
+ const ta=norm(a.titolo);
+ return !!ta&&ta===norm(b.titolo)&&a.supporto===b.supporto&&(!a.interpreti.length||!b.interpreti.length||a.interpreti.some(x=>b.interpreti.some(y=>norm(x)===norm(y))))}
+const dups=r=>DATA.filter(d=>same(r,d));
+function calcDups(){DUPS=new Set();for(let i=0;i<DATA.length;i++)for(let j=i+1;j<DATA.length;j++)if(same(DATA[i],DATA[j])){DUPS.add(DATA[i].id);DUPS.add(DATA[j].id)}}
+const nextNum=()=>Math.max(0,...DATA.map(x=>x.num||0))+1;
+async function numera(){let ch=false,mx=Math.max(0,...DATA.map(r=>r.num||0));const seen=new Set();
+ for(const r of [...DATA].sort((a,b)=>(a.creato||a.mod||0)-(b.creato||b.mod||0)||String(a.id).localeCompare(String(b.id)))){
+  if(!r.num||seen.has(r.num)){r.num=++mx;if(!r.creato)r.creato=r.mod||Date.now();await save(r);ch=true}
+  seen.add(r.num)}
+ return ch}
+async function reload(){DATA=(await getAll()).map(fix);if(await numera())DATA=(await getAll()).map(fix);calcDups();render()}
 
 const FORM=[['titolo','Titolo dell’album','full'],['autori','Autori (separati da ;)'],['interpreti','Interpreti (separati da ;)'],['direttori','Direttori d’orchestra (;)'],['musicisti','Musicisti (;)'],['casa','Casa discografica'],['annoPub','Anno di pubblicazione'],['annoUscita','Anno di uscita'],['generi','Generi musicali (;)'],['supporto','Tipo supporto','sel'],['posizione','Posizione in archivio'],['catalogo','Numero di catalogo'],['matrice','Matrice'],['barcode','Codice a barre']];
 const tracksTxt=r=>r.tracce.map(t=>[t.titolo,t.autori.join('; '),t.interpreti.join('; ')].join(' | ')).join('\n');
 function edit(r,isNew){
- const d=$('#dEdit');
- d.innerHTML=`<h2>${isNew?'Nuovo elemento':'Modifica elemento'}</h2><div class="cvrow"><div class="cov big" id="cv" style="${r.copertina?`background-image:url('${esc(r.copertina)}')`:''}">${r.copertina?'':'Nessuna foto'}</div><div><button id="eP">${r.copertina?'Cambia foto':'Aggiungi foto copertina'}</button><input type="file" id="eF" accept="image/*" hidden></div></div><div class="g">${FORM.map(([k,l,t])=>{
+ const d=$('#dEdit'),dd=isNew?dups(r):[];
+ d.innerHTML=`<h2>${isNew?'Nuovo elemento (sarà il n. '+nextNum()+')':'Modifica elemento n. '+(r.num||'–')}</h2>${dd.length?`<div class="warn"><b>Già presente nel tuo archivio:</b> ${dd.map(x=>'n. '+x.num+' – '+esc(x.titolo)+' ('+esc(x.supporto)+')').join('; ')}<div class="acts"><button id="eO">Apri quello già presente</button></div><span class="msg">Puoi comunque salvarlo come nuovo elemento.</span></div>`:''}<div class="cvrow"><div class="cov big" id="cv" style="${r.copertina?`background-image:url('${esc(r.copertina)}')`:''}">${r.copertina?'':'Nessuna foto'}</div><div><button id="eP">${r.copertina?'Cambia foto':'Aggiungi foto copertina'}</button><input type="file" id="eF" accept="image/*" hidden></div></div><div class="g">${FORM.map(([k,l,t])=>{
   const v=Array.isArray(r[k])?r[k].join('; '):r[k];
   return `<label class="${t==='full'?'full':''}">${l}${t==='sel'?`<select data-k="${k}">${['CD','Vinile','DVD','Altro'].map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select>`:`<input data-k="${k}" value="${esc(v)}">`}</label>`}).join('')}
  <label class="full">Canzoni, una per riga: titolo | autori (;) | interpreti (;)<textarea data-k="tracce" rows="6">${esc(tracksTxt(r))}</textarea></label>
@@ -132,9 +152,12 @@ function edit(r,isNew){
   if(k==='tracce')o.tracce=v.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(p=>p[0]).map(p=>({titolo:p[0],autori:split(p[1]),interpreti:split(p[2])}));
   else if(Array.isArray(r[k]))o[k]=split(v);else o[k]=v.trim()});return o};
  $('#eC').onclick=()=>d.close();
+ if(dd.length)$('#eO').onclick=()=>{d.close();edit(dd[0],false)};
  $('#eP').onclick=()=>$('#eF').click();
  $('#eF').onchange=async e=>{const f=e.target.files[0];if(!f)return;const img=new Image();img.src=URL.createObjectURL(f);await img.decode();r.copertina=scale(img,360,.65);const cv=$('#cv');cv.style.backgroundImage=`url('${r.copertina}')`;cv.textContent='';$('#eP').textContent='Cambia foto'};
- $('#eS').onclick=async()=>{await save(read());d.close();reload()};
+ $('#eS').onclick=async()=>{const o=read();
+  if(isNew){const x=dups(o);if(x.length&&!confirm('Questo elemento sembra già presente: '+x.map(z=>'n. '+z.num+' '+z.titolo).join('; ')+'.\nSalvarlo comunque come nuovo elemento?'))return;o.num=nextNum();o.creato=Date.now()}
+  await save(o);d.close();reload()};
  $('#eD').onclick=()=>{const o=read();d.close();discogs([o.barcode,o.catalogo,o.matrice,[o.interpreti[0],o.titolo].filter(Boolean).join(' ')].find(Boolean)||'',o)};
  if(!isNew)$('#eX').onclick=async()=>{if(confirm('Eliminare questo elemento?')){await remove(r.id);d.close();reload()}};
 }
@@ -145,19 +168,33 @@ const tok=()=>{try{return localStorage.getItem('dgtoken')||''}catch{return''}};
 async function dg(p){const t=tok();if(!t)throw new Error('Inserisci prima il token Discogs in «Dati e impostazioni».');
  const r=await fetch('https://api.discogs.com'+p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(t));
  if(!r.ok)throw new Error('Discogs ha risposto con errore '+r.status);return r.json()}
-async function cerca(q){q=q.trim();const e=encodeURIComponent;let res=[];const code=q.replace(/\s/g,'');
- if(/^\d{8,14}$/.test(code))res=(await dg('/database/search?type=release&barcode='+e(code))).results;
+async function cerca(q){q=q.trim();const e=encodeURIComponent;let res=[];const code=q.replace(/[\s-]/g,'');
+ if(/^\d{8,14}$/.test(code)){const vs=[...new Set([code,code.replace(/^0+/,''),code.length===12?'0'+code:'',code.length===13&&code[0]==='0'?code.slice(1):''])].filter(Boolean);
+  for(const v of vs){res=(await dg('/database/search?type=release&barcode='+e(v))).results;if(res.length)break}
+  if(!res.length)res=(await dg('/database/search?type=release&q='+e(code))).results}
  if(!res.length)res=(await dg('/database/search?type=release&catno='+e(q))).results;
  if(!res.length)res=(await dg('/database/search?type=release&q='+e(q))).results;
  return res.slice(0,12)}
+const STOP=new Set(['the','and','der','die','das','les','los','las','del','dei','con','per']);
+function localMatches(q){q=String(q||'').trim();if(!q)return[];
+ if(/^[\d\s-]{8,}$/.test(q)){const c=bc(q);return DATA.filter(d=>bc(d.barcode)&&bc(d.barcode)===c)}
+ const toks=norm(q).split(' ').filter(t=>t.length>2&&!STOP.has(t));if(!toks.length)return[];
+ return DATA.filter(d=>{const h=norm([d.titolo,...d.interpreti,d.catalogo,d.matrice,d.barcode].join(' '));return toks.every(t=>h.includes(t))})}
+const isIn=x=>DATA.some(d=>(d.discogs&&String(d.discogs)===String(x.id))||(d.titolo.length>2&&norm(x.title).includes(norm(d.titolo))&&d.interpreti.some(a=>norm(x.title).includes(norm(a)))));
 async function discogs(q,base){
- const d=$('#dPick');d.innerHTML=`<h2>Cerca su Discogs</h2><label>Codice a barre, numero di catalogo, matrice o titolo<input id="pq" value="${esc(q)}"></label><div class="acts"><button class="p" id="pg">Cerca</button><button id="pc">Chiudi</button></div><div id="pr"></div>`;
+ const d=$('#dPick');let rs=[];
+ d.innerHTML=`<h2>Cerca su Discogs</h2><label>Codice a barre, numero di catalogo, matrice o titolo<input id="pq" value="${esc(q)}"></label><div class="acts"><button class="p" id="pg">Cerca</button><button id="pc">Chiudi</button></div><div id="pr"></div>`;
  if(!d.open)d.showModal();$('#pc').onclick=()=>d.close();
- const go=async()=>{const pr=$('#pr');pr.innerHTML='<p class="msg">Ricerca in corso…</p>';
-  try{const rs=await cerca($('#pq').value);pr.innerHTML=rs.length?rs.map((x,i)=>`<div class="hit" data-i="${i}"><div class="cov" style="background-image:url('${esc(x.thumb||'')}')"></div><div><b>${esc(x.title)}</b><div class="meta"><span>${esc((x.format||[]).join(', '))}</span><span>${esc(x.year||'')}</span><span>${esc((x.label||[])[0]||'')}</span><span>${esc(x.catno||'')}</span></div></div></div>`).join(''):'<p class="msg">Nessun risultato. Prova con un altro codice o con il titolo.</p>';
-   pr.onclick=async e=>{const h=e.target.closest('.hit');if(!h)return;pr.innerHTML='<p class="msg">Caricamento…</p>';
-    try{const r=await importa(rs[h.dataset.i].id,base);d.close();edit(r,!(base&&DATA.some(x=>x.id===base.id)))}catch(er){pr.innerHTML=`<p class="msg">${esc(er.message)}</p>`}}}
-  catch(er){pr.innerHTML=`<p class="msg">${esc(er.message)}</p>`}};
+ $('#pr').onclick=async e=>{const pr=$('#pr'),l=e.target.closest('.loc');
+  if(l){d.close();edit(DATA.find(z=>z.id===l.dataset.id),false);return}
+  const h=e.target.closest('.hit[data-i]');if(!h)return;pr.innerHTML='<p class="msg">Caricamento…</p>';
+  try{const r=await importa(rs[h.dataset.i].id,base);d.close();edit(r,!(base&&DATA.some(x=>x.id===base.id)))}catch(er){pr.innerHTML=`<p class="msg">${esc(er.message)}</p>`}};
+ const go=async()=>{const pr=$('#pr'),qq=$('#pq').value;pr.innerHTML='<p class="msg">Ricerca in corso…</p>';
+  const loc=localMatches(qq);
+  const lh=loc.length?`<div class="warn"><b>Già presente nel tuo archivio</b>${loc.map(x=>`<div class="hit loc" data-id="${x.id}"><div><b>n. ${x.num}</b> · ${esc(x.titolo)}<div class="meta"><span>${esc(x.interpreti.join(', '))}</span><span>${esc(x.supporto)}</span></div></div></div>`).join('')}<p class="msg">Toccane uno per aprirlo. Puoi comunque aggiungere un altro esemplare dai risultati Discogs qui sotto.</p></div>`:'';
+  try{rs=await cerca(qq);
+   pr.innerHTML=lh+(rs.length?rs.map((x,i)=>{const g=isIn(x);return `<div class="hit${g?' ing':''}" data-i="${i}"><div class="cov" style="background-image:url('${esc(x.thumb||'')}')"></div><div><b>${esc(x.title)}</b>${g?' <span class="dupb">Già presente</span>':''}<div class="meta"><span>${esc((x.format||[]).join(', '))}</span><span>${esc(x.year||'')}</span><span>${esc((x.label||[])[0]||'')}</span><span>${esc(x.catno||'')}</span></div></div></div>`}).join(''):'<p class="msg">Nessun risultato su Discogs. Prova con il numero di catalogo oppure con artista e titolo.</p>')}
+  catch(er){pr.innerHTML=lh+`<p class="msg">${esc(er.message)}</p>`}};
  $('#pg').onclick=go;$('#pq').onkeydown=e=>{if(e.key==='Enter')go()};if(q)go()}
 async function importa(id,base){
  const d=await dg('/releases/'+id);let anno=d.year||'';
@@ -210,9 +247,9 @@ $('#bPhoto').onclick=()=>$('#ph').click();
 $('#ph').onchange=async e=>{const f=e.target.files[0];if(!f)return;e.target.value='';
  const img=new Image();img.src=URL.createObjectURL(f);await img.decode();
  const base=fix({copertina:scale(img,360,.65)});
- if(!ls('ankey'))return edit(base,true);
+ if(!ls('ankey')){const d=$('#dPick');d.innerHTML=`<h2>Ricerca dalla foto</h2><p class="msg">Per riconoscere la copertina serve la chiave Anthropic: inseriscila in «Dati e impostazioni». Nel frattempo puoi compilare la scheda a mano, con la foto già inserita.</p><div class="acts"><button class="p" id="pk">Apri la scheda</button><button id="pI">Impostazioni</button></div>`;d.showModal();$('#pk').onclick=()=>{d.close();edit(base,true)};$('#pI').onclick=()=>{d.close();$('#bSet').click()};return}
  const d=$('#dPick');d.innerHTML='<p class="msg">Riconoscimento della copertina…</p>';d.showModal();
- try{const x=await riconosci(scale(img,900,.8));const q=[x.artista,x.titolo].filter(Boolean).join(' ').trim();
+ try{const x=await riconosci(scale(img,900,.8));const cd=String(x.codice||'').replace(/\D/g,''),q=(cd.length>=8?cd:[x.artista,x.titolo].filter(Boolean).join(' ')).trim();
   if(!q)throw new Error('Non riesco a leggere artista e titolo dalla foto.');discogs(q,base)}
  catch(er){d.close();alert(er.message+' Compila la scheda a mano o riprova con una foto più nitida.');edit(base,true)}};
 
@@ -245,15 +282,15 @@ async function sync(){
  catch(e){say('Errore: '+e.message)}}
 async function riconosci(data){
  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':ls('ankey'),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-  body:JSON.stringify({model:ls('model')||'claude-sonnet-5-5',max_tokens:200,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:data.split(',')[1]}},{type:'text',text:'Questa è la copertina di un album (CD, vinile o DVD). Leggi il testo e rispondi solo con JSON: {"artista":"...","titolo":"..."}. Usa stringhe vuote per ciò che non riesci a leggere. Non inventare.'}]}]})});
+  body:JSON.stringify({model:ls('model')||'claude-sonnet-5-5',max_tokens:200,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:data.split(',')[1]}},{type:'text',text:'Questa è la copertina di un album (CD, vinile o DVD). Leggi il testo e rispondi solo con JSON: {"artista":"...","titolo":"...","codice":"..."}. Il codice è il numero del codice a barre, solo cifre, se è visibile. Usa stringhe vuote per ciò che non riesci a leggere. Non inventare.'}]}]})});
  if(!r.ok)throw new Error('Riconoscimento non riuscito ('+r.status+'): controlla la chiave Anthropic.');
  const t=((await r.json()).content||[]).map(c=>c.text||'').join(''),m=t.match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):{}}
 const csv=rows=>'\ufeff'+rows.map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
 const dl=(n,t,ty)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()};
 function expCsv(perCanzone){
  const j=a=>a.join(' / '),D=[...DATA].sort((a,b)=>norm(a.titolo).localeCompare(norm(b.titolo)));
- const rows=perCanzone?[['Titolo album','Interpreti album','Supporto','Posizione archivio','Canzone','Autori canzone','Interpreti canzone'],...D.flatMap(r=>r.tracce.map(t=>[r.titolo,j(r.interpreti),r.supporto,r.posizione,t.titolo,j(t.autori),j(t.interpreti)]))]
- :[['Tipo supporto','Titolo album','Autori','Interpreti','Direttori d’orchestra','Musicisti','Casa discografica','Anno di pubblicazione','Anno di uscita','Generi','Numero di catalogo','Matrice','Codice a barre','Posizione archivio','Canzoni','Note'],...D.map(r=>[r.supporto,r.titolo,j(r.autori),j(r.interpreti),j(r.direttori),j(r.musicisti),r.casa,r.annoPub,r.annoUscita,j(r.generi),r.catalogo,r.matrice,r.barcode,r.posizione,j(r.tracce.map(t=>t.titolo)),r.note])];
+ const rows=perCanzone?[['N.','Titolo album','Interpreti album','Supporto','Posizione archivio','Canzone','Autori canzone','Interpreti canzone'],...D.flatMap(r=>r.tracce.map(t=>[r.num,r.titolo,j(r.interpreti),r.supporto,r.posizione,t.titolo,j(t.autori),j(t.interpreti)]))]
+ :[['N.','Tipo supporto','Titolo album','Autori','Interpreti','Direttori d’orchestra','Musicisti','Casa discografica','Anno di pubblicazione','Anno di uscita','Generi','Numero di catalogo','Matrice','Codice a barre','Posizione archivio','Canzoni','Note'],...D.map(r=>[r.num,r.supporto,r.titolo,j(r.autori),j(r.interpreti),j(r.direttori),j(r.musicisti),r.casa,r.annoPub,r.annoUscita,j(r.generi),r.catalogo,r.matrice,r.barcode,r.posizione,j(r.tracce.map(t=>t.titolo)),r.note])];
  dl(perCanzone?'discoteca-canzoni.csv':'discoteca-dischi.csv',csv(rows),'text/csv;charset=utf-8')}
 
 // Dati e impostazioni
